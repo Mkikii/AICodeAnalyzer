@@ -17,4 +17,9 @@ setup(
         'Operating System :: OS Independent',
     ],
     python_requires='>=3.6',
+    entry_points={
+        'console_scripts': [
+            'ai-toolkit=ai_toolkit.code_analyzer:main'
+        ]
+    },
 )

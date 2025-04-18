@@ -52,6 +52,76 @@ for bug in results['potential_bugs']:
 - Best practice suggestions
 - Code improvement hints
 
+## VSCode Extension Features
+
+### Installation
+1. Install from VS Code Marketplace:
+   - Search for "AI Code Detective"
+   - Click Install
+
+### Features
+- Real-time AI code detection
+- Dedicated sidebar for analysis results
+- Status bar integration
+- Auto-scan on file save
+- Custom highlighting for AI-generated code
+- Quick fixes and suggestions
+
+![TreeView Screenshot](docs/treeview.png)
+![Inline Highlight Screenshot](docs/inline.png)
+
+## Inline Highlights & Quick‑Fixes
+
+- **Inline Decorations**: Lines flagged (e.g. `eval` usages) are highlighted in the editor.
+- **Quick Fix**: Hover on a warning gutter, select "Replace with ast.literal_eval" to apply safe parsing.
+
+![Inline Highlight Screenshot](docs/inline.png)
+
+## New Commands
+- `AI Detective: Scan Workspace` scans all files in the workspace.
+
+### Configuration
+Access settings through:
+1. Command Palette (`Ctrl+Shift+P`)
+2. Search "AI Code Detective"
+3. Customize:
+   - Auto-scan behavior
+   - Highlighting options
+   - Analysis sensitivity
+
+## Configuration
+- `probabilityThreshold`: 0.5
+- `complexityThreshold`: 10
+
+## CLI Usage
+```bash
+ai-toolkit path/to/your_file.py
+```
+Outputs JSON with fields:
+- `ai_probability`
+- `potential_bugs`
+- `complexity_score`
+- `suggested_fixes`
+
+## Development & Testing
+
+Install in editable mode:
+```bash
+pip install -e .
+```
+
+Run Python tests:
+```bash
+pytest
+```
+
+Run VS Code extension tests:
+```bash
+npm install
+npm run compile
+npm run test
+```
+
 ## Use Cases
 
 - Code review automation
