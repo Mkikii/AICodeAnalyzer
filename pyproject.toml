@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "ai-toolkit"
+version = "0.1.0"
+description = "A toolkit for detecting and debugging AI-generated code"
+authors = ["Your Name <youremail@example.com>"]
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+langchain = "^0.0.1"
+pytorch = "^2.0.0"
+transformers = "^4.30.0"
+numpy = "^1.24.0"
+pandas = "^2.0.0"
+scikit-learn = "^1.0.0"
+pytest = "^7.0.0"
+ast-analyzer = "^1.0.0"
+radon = "^5.1.0"  # For code complexity analysis
+openai = "^0.27.0"
+pylint = "^2.17.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
