@@ -1,5 +1,4 @@
 import ast
-import difflib
 from typing import Dict, List, Optional
 from pathlib import Path
 import radon.complexity as cc
@@ -8,15 +7,26 @@ from .bug_patterns import AIBugPatterns
 
 class AICodeAnalyzer:
     def __init__(self):
-        self.classifier = pipeline("text-classification", model="bert-base-uncased")
+        self._classifier = None
         self.common_patterns = self._load_ai_patterns()
+        self._ast_cache: Dict[Path, ast.AST] = {}
+
+    @property
+    def classifier(self):
+        if self._classifier is None:
+            self._classifier = pipeline("text-classification", model="bert-base-uncased")
+        return self._classifier
 
     def analyze_file(self, file_path: Path) -> Dict:
         with open(file_path, 'r') as f:
             content = f.read()
+        # cache & reuse AST
+        if file_path not in self._ast_cache:
+            self._ast_cache[file_path] = ast.parse(content)
+        tree = self._ast_cache[file_path]
         return {
             'ai_probability': self._detect_ai_code(content),
-            'potential_bugs': self._find_potential_bugs(content),
+            'potential_bugs': self._find_potential_bugs(tree),
             'complexity_score': self._analyze_complexity(content),
             'suggested_fixes': self._suggest_fixes(content)
         }
@@ -33,9 +43,8 @@ class AICodeAnalyzer:
         # pipeline returns [{ 'label': ..., 'score': ... }, …]
         return float(preds[0].get('score', 0.0))
 
-    def _find_potential_bugs(self, code: str) -> List[Dict]:
+    def _find_potential_bugs(self, tree: ast.AST) -> List[Dict]:
         bugs = []
-        tree = ast.parse(code)
         patterns = {
             'error_handling': AIBugPatterns.check_error_handling,
             'api_misuse': AIBugPatterns.check_api_misuse,
@@ -93,4 +102,5 @@ def main():
         sys.exit(1)
     path = Path(sys.argv[1])
     res = AICodeAnalyzer().analyze_file(path)
-    print(json.dumps(res))
+    # pretty-print for debugging
+    print(json.dumps(res, indent=2))

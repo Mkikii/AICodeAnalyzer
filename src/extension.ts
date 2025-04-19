@@ -1,6 +1,10 @@
 import * as vscode from 'vscode';
-import { AICodeAnalyzer } from './analyzer';
+import { AICodeAnalyzer, AnalysisResult } from './analyzer';
 import { ResultsProvider } from './resultsProvider';
+
+const decoType = vscode.window.createTextEditorDecorationType({ backgroundColor: 'rgba(255,200,0,0.2)' });
+const diagCol = vscode.languages.createDiagnosticCollection('ai-detective');
+const resultCache = new Map<string, AnalysisResult>();
 
 export function activate(context: vscode.ExtensionContext) {
   const analyzer = new AICodeAnalyzer();
@@ -24,35 +28,62 @@ export function activate(context: vscode.ExtensionContext) {
     })
   );
 
-  // diagnostics for quick fixes
-  const diagCol = vscode.languages.createDiagnosticCollection('ai-detective');
   context.subscriptions.push(diagCol);
 
-  // analyze command
-  const analyzeFile = async (uri: vscode.Uri) => {
-    try {
-      const res = await analyzer.analyze(uri.fsPath);
-      resultsProvider.setResults(res);
-      resultsProvider.refresh();
+  const cfg = vscode.workspace.getConfiguration('aiCodeDetective');
+  const probThresh = cfg.get<number>('probabilityThreshold', 0.5);
+  const compThresh = cfg.get<number>('complexityThreshold', 10);
 
-      // apply diagnostics & decorations
-      const doc = await vscode.workspace.openTextDocument(uri);
-      const diagnostics: vscode.Diagnostic[] = [];
-      const editor = await vscode.window.showTextDocument(doc);
-      res.potential_bugs.forEach(b => {
-        if (b.line != null) {
-          const range = new vscode.Range(b.line - 1, 0, b.line - 1, Number.MAX_VALUE);
-          diagnostics.push(new vscode.Diagnostic(range, b.description, vscode.DiagnosticSeverity.Warning));
-          // inline decoration
-          editor.setDecorations(decoType, [range]);
-        }
-      });
-      diagCol.set(uri, diagnostics);
-    } catch (e: any) {
-      vscode.window.showErrorMessage(`AI Detective failed: ${e.message}`);
+  async function analyzeFile(uri: vscode.Uri) {
+    const key = uri.toString();
+    let res = resultCache.get(key);
+    if (!res) {
+      res = await analyzer.analyze(uri.fsPath);
+      resultCache.set(key, res);
     }
-  };
+    if (res.ai_probability < probThresh) return;
+    if (res.complexity_score.cyclomatic_complexity > compThresh) {
+      // optionally warn or decorate
+    }
 
+    resultsProvider.setResults(res);
+    resultsProvider.refresh();
+
+    const doc = await vscode.workspace.openTextDocument(uri);
+    const editor = await vscode.window.showTextDocument(doc);
+    const diagnostics: vscode.Diagnostic[] = [];
+
+    res.potential_bugs.forEach(b => {
+      if (b.line != null) {
+        const r = new vscode.Range(b.line - 1, 0, b.line - 1, Number.MAX_VALUE);
+        diagnostics.push(new vscode.Diagnostic(r, b.description, vscode.DiagnosticSeverity.Warning));
+        editor.setDecorations(decoType, [r]);
+      }
+    });
+
+    diagCol.set(uri, diagnostics);
+  }
+
+  // dry quick‑fix helper
+  function makeFixAction(d: vscode.Diagnostic): vscode.CodeAction {
+    const fix = new vscode.CodeAction('Replace with ast.literal_eval', vscode.CodeActionKind.QuickFix);
+    fix.edit = new vscode.WorkspaceEdit();
+    fix.edit.replace(d.rangeUri, d.range, 'ast.literal_eval');
+    fix.diagnostics = [d];
+    return fix;
+  }
+
+  context.subscriptions.push(
+    vscode.languages.registerCodeActionsProvider(['python','javascript'], {
+      provideCodeActions(_doc, _range, ctx) {
+        return ctx.diagnostics
+          .filter(d => d.message.includes('eval'))
+          .map(makeFixAction);
+      }
+    }, { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] })
+  );
+
+  // analyze command
   context.subscriptions.push(
     vscode.commands.registerCommand('ai-code-detective.analyze', async () => {
       const editor = vscode.window.activeTextEditor;
@@ -80,28 +111,29 @@ export function activate(context: vscode.ExtensionContext) {
     })
   );
 
-  // Inline decoration stub
-  const decoType = vscode.window.createTextEditorDecorationType({ backgroundColor: 'rgba(255,200,0,0.2)' });
+  // new: scan only git-staged files
+  context.subscriptions.push(
+    vscode.commands.registerCommand('ai-code-detective.scanStaged', async () => {
+      const root = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
+      const { exec } = require('child_process');
+      exec('git diff --name-only --staged', { cwd: root }, async (err: any, stdout: string) => {
+        if (err) {
+          vscode.window.showErrorMessage(err.message);
+          return;
+        }
+        const files = stdout.split(/\r?\n/).filter(f => /\.(py|js|ts)$/.test(f));
+        for (const f of files) {
+          const uri = vscode.Uri.file(require('path').join(root, f));
+          await analyzeFile(uri);
+        }
+        vscode.window.showInformationMessage(`Scanned ${files.length} staged files`);
+      });
+    })
+  );
+
   vscode.window.onDidChangeTextEditorSelection(e => {
     // TODO: scan visible range & highlight AI‐generated spans with decoType
   });
-
-  // Code action provider stub
-  context.subscriptions.push(
-    vscode.languages.registerCodeActionsProvider(['python','javascript'], {
-      provideCodeActions(doc, rng, ctx) {
-        return ctx.diagnostics
-          .filter(d => d.source === undefined && d.message.includes('eval'))
-          .map(d => {
-            const fix = new vscode.CodeAction('Replace with ast.literal_eval', vscode.CodeActionKind.QuickFix);
-            fix.edit = new vscode.WorkspaceEdit();
-            fix.edit.replace(doc.uri, d.range, 'ast.literal_eval');
-            fix.diagnostics = [d];
-            return fix;
-          });
-      }
-    }, { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] })
-  );
 
   // watch on save
   const watcher = vscode.workspace.createFileSystemWatcher('**/*.{py,js,ts}');
