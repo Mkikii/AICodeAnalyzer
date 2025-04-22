@@ -1,5 +1,6 @@
 from typing import List, Dict
 import ast
+import re
 
 class AIBugPatterns:
     @staticmethod
@@ -35,4 +36,62 @@ class AIBugPatterns:
                     'description': "Use of 'eval' detected; this is a security risk",
                     'line': call.lineno
                 })
+        return issues
+
+    @staticmethod
+    def check_js_file(content: str) -> List[Dict]:
+        """
+        Analyze JavaScript/TypeScript files for common issues using regex patterns.
+        """
+        issues: List[Dict] = []
+
+        # Find line numbers
+        lines = content.split('\n')
+
+        # Check for eval usage
+        eval_pattern = re.compile(r'eval\s*\(')
+        for i, line in enumerate(lines):
+            if eval_pattern.search(line):
+                issues.append({
+                    'type': 'security_issue',
+                    'description': "Use of 'eval' detected; this is a security risk",
+                    'line': i + 1
+                })
+
+        # Check for inadequate error handling in promises
+        if '.then(' in content and '.catch(' not in content:
+            issues.append({
+                'type': 'error_handling',
+                'description': "Promise without error handling (missing .catch())",
+                'line': next((i + 1 for i, line in enumerate(lines) if '.then(' in line), None)
+            })
+
+        # Check for setTimeout with string parameter (anti-pattern similar to eval)
+        setTimeout_pattern = re.compile(r'setTimeout\s*\(\s*[\'"]')
+        for i, line in enumerate(lines):
+            if setTimeout_pattern.search(line):
+                issues.append({
+                    'type': 'security_issue',
+                    'description': "setTimeout with string parameter acts like eval and is a security risk",
+                    'line': i + 1
+                })
+
+        # Check for document.write (XSS vulnerability)
+        if 'document.write(' in content:
+            issues.append({
+                'type': 'security_issue',
+                'description': "document.write() is vulnerable to XSS attacks",
+                'line': next((i + 1 for i, line in enumerate(lines) if 'document.write(' in line), None)
+            })
+
+        # Check for innerHtml assignment (potential XSS)
+        innerHTML_pattern = re.compile(r'\.innerHTML\s*=')
+        for i, line in enumerate(lines):
+            if innerHTML_pattern.search(line):
+                issues.append({
+                    'type': 'security_issue',
+                    'description': "Assigning to innerHTML can lead to XSS vulnerabilities",
+                    'line': i + 1
+                })
+
         return issues

@@ -1,0 +1,12 @@
+# Development
+node_modules/
+.vscode-test/
+__pycache__/
+*.pyc
+.coverage
+out/
+
+# Build
+dist/
+build/
+*.vsix
