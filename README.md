@@ -18,7 +18,7 @@ A powerful toolkit for detecting, analyzing, and debugging AI-generated code. In
   - Workspace scanning
   - Status bar integration
 
-### 🚧 In Progress
+###  In Progress
 - Advanced pattern recognition improvements
 - Machine learning model analysis features
 - Performance optimizations for large codebases
